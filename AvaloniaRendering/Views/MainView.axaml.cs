@@ -10,7 +10,7 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Numerics;
 
-namespace Rendering.Views;
+namespace AvaloniaRendering.Views;
 
 public partial class MainView : UserControl
 {

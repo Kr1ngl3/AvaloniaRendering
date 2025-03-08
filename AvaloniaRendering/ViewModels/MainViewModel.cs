@@ -6,7 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 
-namespace Rendering.ViewModels;
+namespace AvaloniaRendering.ViewModels;
 
 public class MainViewModel : ViewModelBase
 {

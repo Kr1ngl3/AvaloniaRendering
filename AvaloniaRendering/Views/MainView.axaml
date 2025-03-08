@@ -1,11 +1,11 @@
 <UserControl
-    x:Class="Rendering.Views.MainView"
+    x:Class="AvaloniaRendering.Views.MainView"
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:c="clr-namespace:Rendering.Controls"
+    xmlns:c="clr-namespace:AvaloniaRendering.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="clr-namespace:Rendering.ViewModels"
+    xmlns:vm="clr-namespace:AvaloniaRendering.ViewModels"
     d:DesignHeight="900"
     d:DesignWidth="1200"
     x:DataType="vm:MainViewModel"
@@ -19,6 +19,6 @@
     </Design.DataContext>
 
     <Grid Background="White">
-        <c:Render />
+        <c:Rendere />
     </Grid>
 </UserControl>

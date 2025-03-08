@@ -13,9 +13,18 @@ using System.Collections.Generic;
 using Avalonia.Input;
 using System.Timers;
 using Avalonia.Threading;
+using AvaloniaRendering.Views;
+using AvaloniaRendering.ViewModels;
+using Avalonia.Controls.Platform;
+using SkiaSharp;
+using Avalonia.Skia;
 
-namespace Rendering.Controls;
-public partial class Render : UserControl
+using Avalonia.Rendering.SceneGraph;
+using System.Net;
+using System.Collections;
+
+namespace AvaloniaRendering.Controls;
+public partial class Rendere : UserControl
 {
     const float RotateSpeed = MathF.PI / FPS;
     const int FPS = 144;
@@ -29,8 +38,10 @@ public partial class Render : UserControl
     private float _pitch;
     private float _roll;
 
+    SKBitmap sKBitmap;
+
     Dictionary<Key, bool> keyMap = new();
-    public Render()
+    public Rendere()
     {
         InitializeComponent();
 
@@ -48,13 +59,15 @@ public partial class Render : UserControl
 
     private void Initialize()
     {
-        var bitmap = new WriteableBitmap(
-            new PixelSize(_width, _height),
-            new Avalonia.Vector(96, 96),
-        PixelFormat.Rgb32,
-        AlphaFormat.Premul);
-        image.Source = bitmap;
-        var frameBuffer = bitmap.Lock();
+         sKBitmap = new SKBitmap(_width, _height);
+
+        //var bitmap = new WriteableBitmap(
+        //    new PixelSize(_width, _height),
+        //    new Avalonia.Vector(96, 96),
+        //PixelFormat.Rgb32,
+        //AlphaFormat.Premul);
+        //image.Source = bitmap;
+        //var frameBuffer = bitmap.Lock();
 
         (LoadResult result, (int, int)[] lineList) cube = Model3D();
 
@@ -65,16 +78,29 @@ public partial class Render : UserControl
         {
             Span<Vector3> vertices = stackalloc Vector3[originalVertices.Length];
             originalVertices.CopyTo(vertices);
-            Compose(frameBuffer, vertices, cube.lineList, HsvColor.ToRgb(eventArgs.SignalTime.TimeOfDay.TotalMilliseconds / 10 % 360, 1, 1));
+            Compose(sKBitmap.GetAddress(0,0), vertices, cube.lineList, HsvColor.ToRgb(eventArgs.SignalTime.TimeOfDay.TotalMilliseconds / 10 % 360, 1, 1));
         };
         timer.Start();
+        
     }
 
-    private void Compose(ILockedFramebuffer frameBuffer, Span<Vector3> vertices, (int, int)[] lineList, Color color)
+    public override void Render(DrawingContext context)
+    {
+        context.Custom(new ImageDrawOperation(sKBitmap));
+    }
+
+
+    private void Compose(nint address, Span<Vector3> vertices, (int, int)[] lineList, Color color)
     {
         Color background = HsvColor.ToRgb(0, 1, 0);
 
-        Array.Fill<byte>(_data, 0);
+        for (int i = 0; i < _data.Length; i += 4)
+        {
+            _data[i] = 0;     // Blue
+            _data[i + 1] = 0; // Green
+            _data[i + 2] = 0; // Red
+            _data[i + 3] = 255; // Alpha (fully opaque)
+        }
 
         _yaw += keyMap[Key.A] ? RotateSpeed : 0;
         _yaw -= keyMap[Key.D] ? RotateSpeed : 0;
@@ -99,11 +125,12 @@ public partial class Render : UserControl
         }
 
         // copy data to buffer
-        Marshal.Copy(_data, 0, frameBuffer.Address, _data.Length);
+        Marshal.Copy(_data, 0, address, _data.Length);
         // dispose buffer to copy buffer to image
-        frameBuffer.Dispose();
+        //frameBuffer.Dispose();
         // tell image to update visual
-        Dispatcher.UIThread.Post(image.InvalidateVisual);
+        //Dispatcher.UIThread.Post(image.InvalidateVisual);
+        Dispatcher.UIThread.InvokeAsync(InvalidateVisual);
     }
 
     private void DrawLine(byte[] data, Color color, Vector2 start, Vector2 end)
@@ -183,6 +210,8 @@ public partial class Render : UserControl
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         keyMap[e.Key] = true;
+        if (e.Key == Key.Escape)
+            sKBitmap.Dispose();
     }
 
     private void OnKeyUp(object? sender, KeyEventArgs e)
@@ -192,3 +221,64 @@ public partial class Render : UserControl
 
 }
 
+class ImageDrawOperation : ICustomDrawOperation
+{
+    SKBitmap _bitmap;
+    public ImageDrawOperation(SKBitmap bitmap)
+    {
+        _bitmap = bitmap;
+    }
+
+    public Rect Bounds => new Rect(0, 0, 500, 500);
+
+    public void Dispose() { }
+
+    public bool Equals(ICustomDrawOperation? other) => false;
+    public bool HitTest(Point p) => false;
+
+    public void Render(ImmediateDrawingContext context)
+    {
+
+        var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+        if (leaseFeature is null)
+            return;
+
+        using var lease = leaseFeature.Lease();
+
+        var canvas = lease.SkCanvas;
+        canvas.Save();
+
+
+        ////canvas.DrawBitmap(_bitmap, new SKPoint(500, 500));
+        using var paint = new SKPaint
+        {
+            Color = SKColors.Black,
+            IsAntialias = true,
+            Style = SKPaintStyle.Fill
+        };
+        canvas.DrawRect(20, 20, 50, 50, paint);
+
+        //using SKBitmap bitmap = new SKBitmap(30, 30);
+        //byte[] _data = new byte[30*30*4];
+        //for (int i = 0; i < _data.Length; i += 4)
+        //{
+        //    _data[i] = 255;     // Blue
+        //    _data[i + 1] = 0; // Green
+        //    _data[i + 2] = 0; // Red
+        //    _data[i + 3] = 255; // Alpha (fully opaque)
+        //}
+        //GCHandle pinnedArray = GCHandle.Alloc(_data, GCHandleType.Pinned);
+        //IntPtr pointer = pinnedArray.AddrOfPinnedObject();
+        //// Do your stuff...
+        //var info = new SKImageInfo(30, 30, SKColorType.Bgra8888, SKAlphaType.Premul);
+        //bitmap.InstallPixels(info, pointer);
+
+
+
+        //pinnedArray.Free();
+
+        canvas.DrawBitmap(_bitmap, new SKPoint(0,0));
+
+        canvas.Restore();
+    }
+}

@@ -1,6 +1,6 @@
 ﻿using ReactiveUI;
 
-namespace Rendering.ViewModels;
+namespace AvaloniaRendering.ViewModels;
 
 public class ViewModelBase : ReactiveObject
 {
