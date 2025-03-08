@@ -5,80 +5,66 @@ using Avalonia.Platform;
 using ObjLoader.Loader.Loaders;
 using System.Numerics;
 using System;
-using Avalonia.Media.Imaging;
-using System.Runtime.InteropServices;
 using ObjLoader.Loader.Data.VertexData;
 using System.Linq;
 using System.Collections.Generic;
 using Avalonia.Input;
 using System.Timers;
 using Avalonia.Threading;
-using AvaloniaRendering.Views;
-using AvaloniaRendering.ViewModels;
-using Avalonia.Controls.Platform;
 using SkiaSharp;
 using Avalonia.Skia;
 
 using Avalonia.Rendering.SceneGraph;
-using System.Net;
-using System.Collections;
+using Avalonia.Controls.Documents;
+using System.Diagnostics;
 
 namespace AvaloniaRendering.Controls;
 public partial class Rendere : UserControl
 {
-    const float RotateSpeed = MathF.PI / FPS;
-    const int FPS = 144;
+    const int FPS = 60;
+    const float RotateSpeed = MathF.PI * 2 / FPS;
     private static readonly Key[] UsedKeys = { Key.W, Key.S, Key.Q, Key.E, Key.A, Key.D };
 
     private readonly int _width;
     private readonly int _height;
-    private readonly byte[] _data;
+    private readonly SKBitmap _bitmap;
+    private readonly Dictionary<Key, bool> keyMap = new();
 
     private float _yaw;
     private float _pitch;
     private float _roll;
 
-    SKBitmap sKBitmap;
 
-    Dictionary<Key, bool> keyMap = new();
     public Rendere()
     {
         InitializeComponent();
 
         _width = (int)Width;
         _height = (int)Height;
-        _data = new byte[_width * _height * 4];
+        _bitmap = new SKBitmap(_width, _height);
 
         foreach (Key key in UsedKeys)
             keyMap[key] = false;
 
         KeyDownEvent.AddClassHandler<TopLevel>(OnKeyDown, handledEventsToo: true);
         KeyUpEvent.AddClassHandler<TopLevel>(OnKeyUp, handledEventsToo: true);
+
         Initialize();
     }
 
+    static DateTime last = DateTime.Now;
     private void Initialize()
     {
-         sKBitmap = new SKBitmap(_width, _height);
-
-        //var bitmap = new WriteableBitmap(
-        //    new PixelSize(_width, _height),
-        //    new Avalonia.Vector(96, 96),
-        //PixelFormat.Rgb32,
-        //AlphaFormat.Premul);
-        //image.Source = bitmap;
-        //var frameBuffer = bitmap.Lock();
-
         (LoadResult result, (int, int)[] lineList) cube = Model3D();
 
-        Vector3[] originalVertices = cube.result.Vertices.Select(v => VertexToVector(v)).ToArray();
+        Vector3[] originalVertices = cube.result.Vertices.Select(VertexToVector).ToArray();
 
         Timer timer = new Timer(1d / FPS * 1000);
         timer.Elapsed += (sender, eventArgs) =>
         {
             Span<Vector3> vertices = stackalloc Vector3[originalVertices.Length];
             originalVertices.CopyTo(vertices);
-            Compose(sKBitmap.GetAddress(0,0), vertices, cube.lineList, HsvColor.ToRgb(eventArgs.SignalTime.TimeOfDay.TotalMilliseconds / 10 % 360, 1, 1));
+            Compose(_bitmap.GetPixelSpan(), vertices, cube.lineList, HsvColor.ToRgb(eventArgs.SignalTime.TimeOfDay.TotalMilliseconds / 10 % 360, 1, 1));
         };
         timer.Start();
         
@@ -86,21 +72,17 @@ public partial class Rendere : UserControl
 
     public override void Render(DrawingContext context)
     {
-        context.Custom(new ImageDrawOperation(sKBitmap));
+        context.Custom(new ImageDrawOperation(_bitmap, _width, _height));
     }
 
 
-    private void Compose(nint address, Span<Vector3> vertices, (int, int)[] lineList, Color color)
+    static int counter = 0;
+    private void Compose(Span<byte> data, Span<Vector3> vertices, (int, int)[] lineList, Color color)
     {
+        if (keyMap[Key.A]) counter++;
         Color background = HsvColor.ToRgb(0, 1, 0);
 
-        for (int i = 0; i < _data.Length; i += 4)
-        {
-            _data[i] = 0;     // Blue
-            _data[i + 1] = 0; // Green
-            _data[i + 2] = 0; // Red
-            _data[i + 3] = 255; // Alpha (fully opaque)
-        }
+        Clear(data, background);
 
         _yaw += keyMap[Key.A] ? RotateSpeed : 0;
         _yaw -= keyMap[Key.D] ? RotateSpeed : 0;
@@ -110,7 +92,10 @@ public partial class Rendere : UserControl
 
         _roll += keyMap[Key.Q] ? RotateSpeed : 0;
         _roll -= keyMap[Key.E] ? RotateSpeed : 0;
-        
+
+        if (_yaw > 2 * MathF.PI)
+            Trace.WriteLine($"now at {counter}");
+
         // move 2 back to move away from screen which is at z=1
         Matrix4x4 matrix = Matrix4x4.CreateFromYawPitchRoll(_yaw, _pitch, _roll) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 2)); 
         for (int i = 0; i < vertices.Length; i++)
@@ -119,21 +104,15 @@ public partial class Rendere : UserControl
 
         foreach (var line in lineList)
         {
-            DrawLine(_data, color,
+            DrawLine(data, color,
                 Transform(vertices[line.Item1]),
                 Transform(vertices[line.Item2]));
         }
 
-        // copy data to buffer
-        Marshal.Copy(_data, 0, address, _data.Length);
-        // dispose buffer to copy buffer to image
-        //frameBuffer.Dispose();
-        // tell image to update visual
-        //Dispatcher.UIThread.Post(image.InvalidateVisual);
         Dispatcher.UIThread.InvokeAsync(InvalidateVisual);
     }
 
-    private void DrawLine(byte[] data, Color color, Vector2 start, Vector2 end)
+    private void DrawLine(Span<byte> data, Color color, Vector2 start, Vector2 end)
     {
         Vector2 d = end - start;
 
@@ -152,11 +131,28 @@ public partial class Rendere : UserControl
             PutPixel(data, color, (int)MathF.Round(x), (int)MathF.Round(y));
     }
 
-    private void PutPixel(byte[] data, Color color, int x, int y)
+    private void PutPixel(Span<byte> data, Color color, int x, int y)
     {
-        data[y * _width * 4 + x * 4] = color.R;
+        data[y * _width * 4 + x * 4] = color.B;
         data[y * _width * 4 + x * 4 + 1] = color.G;
-        data[y * _width * 4 + x * 4 + 2] = color.B;
+        data[y * _width * 4 + x * 4 + 2] = color.R;
+        data[y * _width * 4 + x * 4 + 3] = color.A;
+    }
+
+    private void Clear(Span<byte> data)
+    {
+        Clear(data, Colors.Black);
+    }
+
+    private void Clear(Span<byte> data, Color color)
+    {
+        for (int i = 0; i < data.Length; i += 4)
+        {
+            data[i] = color.B;
+            data[i + 1] = color.G;
+            data[i + 2] = color.R;
+            data[i + 3] = color.A;
+        }
     }
 
     private Vector2 Transform(Vector3 vertex)
@@ -211,7 +207,7 @@ public partial class Rendere : UserControl
     {
         keyMap[e.Key] = true;
         if (e.Key == Key.Escape)
-            sKBitmap.Dispose();
+            _bitmap.Dispose();
     }
 
     private void OnKeyUp(object? sender, KeyEventArgs e)
@@ -223,62 +219,30 @@ public partial class Rendere : UserControl
 
 class ImageDrawOperation : ICustomDrawOperation
 {
-    SKBitmap _bitmap;
-    public ImageDrawOperation(SKBitmap bitmap)
+    private readonly SKBitmap _bitmap;
+    public ImageDrawOperation(SKBitmap bitmap, int width, int height)
     {
         _bitmap = bitmap;
+        Bounds = new Rect(0, 0, width, height);
     }
 
-    public Rect Bounds => new Rect(0, 0, 500, 500);
-
+    public Rect Bounds { get; }
     public void Dispose() { }
-
     public bool Equals(ICustomDrawOperation? other) => false;
     public bool HitTest(Point p) => false;
 
     public void Render(ImmediateDrawingContext context)
     {
-
+        // Get canvas to draw on
         var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+
         if (leaseFeature is null)
-            return;
+            throw new Exception($"Could not get {nameof(ISkiaSharpApiLeaseFeature)} from {nameof(ImmediateDrawingContext)}");
 
         using var lease = leaseFeature.Lease();
-
         var canvas = lease.SkCanvas;
-        canvas.Save();
 
-
-        ////canvas.DrawBitmap(_bitmap, new SKPoint(500, 500));
-        using var paint = new SKPaint
-        {
-            Color = SKColors.Black,
-            IsAntialias = true,
-            Style = SKPaintStyle.Fill
-        };
-        canvas.DrawRect(20, 20, 50, 50, paint);
-
-        //using SKBitmap bitmap = new SKBitmap(30, 30);
-        //byte[] _data = new byte[30*30*4];
-        //for (int i = 0; i < _data.Length; i += 4)
-        //{
-        //    _data[i] = 255;     // Blue
-        //    _data[i + 1] = 0; // Green
-        //    _data[i + 2] = 0; // Red
-        //    _data[i + 3] = 255; // Alpha (fully opaque)
-        //}
-        //GCHandle pinnedArray = GCHandle.Alloc(_data, GCHandleType.Pinned);
-        //IntPtr pointer = pinnedArray.AddrOfPinnedObject();
-        //// Do your stuff...
-        //var info = new SKImageInfo(30, 30, SKColorType.Bgra8888, SKAlphaType.Premul);
-        //bitmap.InstallPixels(info, pointer);
-
-
-
-        //pinnedArray.Free();
-
+        // draw bitmap
         canvas.DrawBitmap(_bitmap, new SKPoint(0,0));
-
-        canvas.Restore();
     }
 }
