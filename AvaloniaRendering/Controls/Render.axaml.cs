@@ -94,16 +94,27 @@ public partial class Rendere : UserControl
         // move 2 back to move away from screen which is at z=1
         Matrix4x4 matrix = Matrix4x4.CreateFromYawPitchRoll(_yaw, _pitch, _roll) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 2));
 
+        // transform from model space to view/world space
         for (int i = 0; i < vertices.Length; i++)
+        {
+            //vertices[i] = Vector3.Transform(vertices[i], Matrix4x4.CreateScale(new Vector3(1f/5)));
             vertices[i] = Vector3.Transform(vertices[i], matrix);
+        }
 
         for (int i = 0; i < faces.Length; i++)
         {
+            Vector3 v0 = vertices[faces[i].Item1 - 1];
+            Vector3 v1 = vertices[faces[i].Item2 - 1];
+            Vector3 v2 = vertices[faces[i].Item3 - 1];
+
+            if (Dot(Cross(v1 - v0, v2 - v0), v0) >= 0)
+                continue;
+
             DrawTriangle(data, 
                 HsvColor.ToRgb(i * 30 + timeHue % 360, 1, 1), 
-                Transform(vertices[faces[i].Item1 - 1]), 
-                Transform(vertices[faces[i].Item2 - 1]), 
-                Transform(vertices[faces[i].Item3 - 1]));
+                Transform(v0), 
+                Transform(v1), 
+                Transform(v2));
         }
 
         Dispatcher.UIThread.InvokeAsync(InvalidateVisual);
@@ -122,6 +133,9 @@ public partial class Rendere : UserControl
         double s2 = v2.X - v0.X;
         double s3 = v1.Y - v0.Y;
         double s4 = point.Y - v0.Y;
+
+        // fix bug from deriviation of equation
+        s1 = s1 == 0 ? 1 : s1;
 
         double w1 = (v0.X * s1 + s4 * s2 - point.X * s1) / (s3 * s2 - (v1.X - v0.X) * s1);
         double w2 = (s4 - w1 * s3) / s1;
@@ -152,6 +166,13 @@ public partial class Rendere : UserControl
         }
     }
 
+    /// <summary>
+    /// Source: https://www.geeksforgeeks.org/dda-line-generation-algorithm-computer-graphics/
+    /// </summary>
+    /// <param name="data">Span to write to</param>
+    /// <param name="color">Color of line</param>
+    /// <param name="start">Start point</param>
+    /// <param name="end">End point</param>
     private void DrawLine(Span<byte> data, Color color, Vector2 start, Vector2 end)
     {
         Vector2 d = end - start;
@@ -178,15 +199,10 @@ public partial class Rendere : UserControl
 
     private void PutPixel(Span<byte> data, Color color, int x, int y)
     {
-        PutPixel(data, color, y * _width * 4 + x * 4);
-    }
-
-    private void PutPixel(Span<byte> data, Color color, int i)
-    {
-        data[i] = color.B;
-        data[i + 1] = color.G;
-        data[i + 2] = color.R;
-        data[i + 3] = color.A;
+        data[y * _width * 4 + x * 4] = color.B;
+        data[y * _width * 4 + x * 4 + 1] = color.G;
+        data[y * _width * 4 + x * 4 + 2] = color.R;
+        data[y * _width * 4 + x * 4 + 3] = color.A;
     }
 
     private void Clear(Span<byte> data)
@@ -198,10 +214,7 @@ public partial class Rendere : UserControl
     {
         for (int i = 0; i < data.Length; i += 4)
         {
-            data[i] = color.B;
-            data[i + 1] = color.G;
-            data[i + 2] = color.R;
-            data[i + 3] = color.A;
+            PutPixel(data, color, i / _width, i % _width);
         }
     }
 
@@ -255,6 +268,18 @@ public partial class Rendere : UserControl
         keyMap[e.Key] = false;
     }
 
+    private Vector3 Cross(Vector3 lhs, Vector3 rhs)
+    {
+        return new Vector3(
+            lhs.Y * rhs.Z - lhs.Z * rhs.Y,
+            -(lhs.X * rhs.Z - lhs.Z * rhs.X),
+            lhs.X * rhs.Y - lhs.Y * rhs.X);
+    }
+
+    private float Dot(Vector3 lhs, Vector3 rhs)
+    {
+        return lhs.X * rhs.X + lhs.Y * rhs.Y + lhs.Z * rhs.Z;
+    }
 }
 
 class ImageDrawOperation : ICustomDrawOperation
