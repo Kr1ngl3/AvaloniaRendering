@@ -17,12 +17,13 @@ using Avalonia.Skia;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Controls.Documents;
 using System.Diagnostics;
+using Avalonia.Animation;
 
 namespace AvaloniaRendering.Controls;
 public partial class Rendere : UserControl
 {
     const int FPS = 60;
-    const float RotateSpeed = MathF.PI * 2 / FPS;
+    const float RotateSpeed = MathF.PI / FPS;
     private static readonly Key[] UsedKeys = { Key.W, Key.S, Key.Q, Key.E, Key.A, Key.D };
 
     private readonly int _width;
@@ -55,16 +56,14 @@ public partial class Rendere : UserControl
     static DateTime last = DateTime.Now;
     private void Initialize()
     {
-        (LoadResult result, (int, int)[] lineList) cube = Model3D();
-
-        Vector3[] originalVertices = cube.result.Vertices.Select(VertexToVector).ToArray();
+        var model = Model3D();
 
         Timer timer = new Timer(1d / FPS * 1000);
         timer.Elapsed += (sender, eventArgs) =>
         {
-            Span<Vector3> vertices = stackalloc Vector3[originalVertices.Length];
-            originalVertices.CopyTo(vertices);
-            Compose(_bitmap.GetPixelSpan(), vertices, cube.lineList, HsvColor.ToRgb(eventArgs.SignalTime.TimeOfDay.TotalMilliseconds / 10 % 360, 1, 1));
+            Span<Vector3> vertices = stackalloc Vector3[model.Vertices.Length];
+            model.Vertices.CopyTo(vertices);
+            Compose(_bitmap.GetPixelSpan(), vertices, model.Faces, eventArgs.SignalTime.TimeOfDay.TotalMilliseconds / 10 % 360);
         };
         timer.Start();
         
@@ -77,9 +76,8 @@ public partial class Rendere : UserControl
 
 
     static int counter = 0;
-    private void Compose(Span<byte> data, Span<Vector3> vertices, (int, int)[] lineList, Color color)
+    private void Compose(Span<byte> data, Span<Vector3> vertices, (int, int, int)[] faces, double timeHue)
     {
-        if (keyMap[Key.A]) counter++;
         Color background = HsvColor.ToRgb(0, 1, 0);
 
         Clear(data, background);
@@ -93,23 +91,65 @@ public partial class Rendere : UserControl
         _roll += keyMap[Key.Q] ? RotateSpeed : 0;
         _roll -= keyMap[Key.E] ? RotateSpeed : 0;
 
-        if (_yaw > 2 * MathF.PI)
-            Trace.WriteLine($"now at {counter}");
-
         // move 2 back to move away from screen which is at z=1
-        Matrix4x4 matrix = Matrix4x4.CreateFromYawPitchRoll(_yaw, _pitch, _roll) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 2)); 
+        Matrix4x4 matrix = Matrix4x4.CreateFromYawPitchRoll(_yaw, _pitch, _roll) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 2));
+
         for (int i = 0; i < vertices.Length; i++)
             vertices[i] = Vector3.Transform(vertices[i], matrix);
 
-
-        foreach (var line in lineList)
+        for (int i = 0; i < faces.Length; i++)
         {
-            DrawLine(data, color,
-                Transform(vertices[line.Item1]),
-                Transform(vertices[line.Item2]));
+            DrawTriangle(data, 
+                HsvColor.ToRgb(i * 30 + timeHue % 360, 1, 1), 
+                Transform(vertices[faces[i].Item1 - 1]), 
+                Transform(vertices[faces[i].Item2 - 1]), 
+                Transform(vertices[faces[i].Item3 - 1]));
         }
 
         Dispatcher.UIThread.InvokeAsync(InvalidateVisual);
+    }
+    /// <summary>
+    /// Source: https://github.com/SebLague/Gamedev-Maths/blob/master/PointInTriangle.cs
+    /// </summary>
+    /// <param name="v0">First vertex of triangle</param>
+    /// <param name="v1">Second vertex of triangle</param>
+    /// <param name="v2">Third vertex of triangle</param>
+    /// <param name="point">Point to look at</param>
+    /// <returns>Whether the point is inside the triangle</returns>
+    private bool IsInsideTriangle(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 point)
+    {
+        double s1 = v2.Y - v0.Y;
+        double s2 = v2.X - v0.X;
+        double s3 = v1.Y - v0.Y;
+        double s4 = point.Y - v0.Y;
+
+        double w1 = (v0.X * s1 + s4 * s2 - point.X * s1) / (s3 * s2 - (v1.X - v0.X) * s1);
+        double w2 = (s4 - w1 * s3) / s1;
+        return w1 >= 0 && w2 >= 0 && (w1 + w2) <= 1;
+    }
+
+    private void DrawTriangle(Span<byte> data, Color color, Vector2 v0, Vector2 v1, Vector2 v2)
+    {
+        // Find the bounding box of the triangle
+        int minX = (int)MathF.Round(MathF.Min(MathF.Min(v0.X, v1.X), v2.X));
+        int maxX = (int)MathF.Round(MathF.Max(MathF.Max(v0.X, v1.X), v2.X));
+        int minY = (int)MathF.Round(MathF.Min(MathF.Min(v0.Y, v1.Y), v2.Y));
+        int maxY = (int)MathF.Round(MathF.Max(MathF.Max(v0.Y, v1.Y), v2.Y));
+
+        Vector2 point;
+
+        // Iterate over each pixel in the bounding box
+        for (point.Y = minY; point.Y <= maxY; point.Y++)
+        {
+            for (point.X = minX; point.X <= maxX; point.X++)
+            {
+                // If the point is inside the triangle, plot it
+                if (IsInsideTriangle(v0, v1, v2, point))
+                {
+                    PutPixel(data, color, point);
+                }
+            }
+        }
     }
 
     private void DrawLine(Span<byte> data, Color color, Vector2 start, Vector2 end)
@@ -117,7 +157,7 @@ public partial class Rendere : UserControl
         Vector2 d = end - start;
 
         // calculate steps required for generating pixels 
-        int steps = (int)(MathF.Abs(d.X) > MathF.Abs(d.Y) ? MathF.Abs(d.X) : MathF.Abs(d.Y));
+        int steps = (int)MathF.Round((MathF.Abs(d.X) > MathF.Abs(d.Y) ? MathF.Abs(d.X) : MathF.Abs(d.Y)));
 
         // calculate increment in x & y for each steps 
         float Xinc = d.X / steps;
@@ -131,12 +171,22 @@ public partial class Rendere : UserControl
             PutPixel(data, color, (int)MathF.Round(x), (int)MathF.Round(y));
     }
 
+    private void PutPixel(Span<byte> data, Color color, Vector2 point)
+    {
+        PutPixel(data, color, (int)MathF.Round(point.X), (int)MathF.Round(point.Y));
+    }
+
     private void PutPixel(Span<byte> data, Color color, int x, int y)
     {
-        data[y * _width * 4 + x * 4] = color.B;
-        data[y * _width * 4 + x * 4 + 1] = color.G;
-        data[y * _width * 4 + x * 4 + 2] = color.R;
-        data[y * _width * 4 + x * 4 + 3] = color.A;
+        PutPixel(data, color, y * _width * 4 + x * 4);
+    }
+
+    private void PutPixel(Span<byte> data, Color color, int i)
+    {
+        data[i] = color.B;
+        data[i + 1] = color.G;
+        data[i + 2] = color.R;
+        data[i + 3] = color.A;
     }
 
     private void Clear(Span<byte> data)
@@ -165,34 +215,24 @@ public partial class Rendere : UserControl
         return new((vertex.X * inverse + 1) * xFactor, (-vertex.Y * inverse + 1) * yFactor);
     }
 
-    private (LoadResult, (int, int)[]) Model3D()
+    private (Vector3[] Vertices, (int, int, int)[] Faces) Model3D()
+    {
+        var objLoaderFactory = new ObjLoaderFactory();
+        var objLoader = objLoaderFactory.Create();
+        using var fileStream = AssetLoader.Open(new Uri("avares://AvaloniaRendering/Assets/cube.txt"));
+        var result = objLoader.Load(fileStream);
+
+        return (result.Vertices.Select(VertexToVector).ToArray(),
+            result.Groups[0].Faces.Select(face => (face[0].VertexIndex, face[1].VertexIndex, face[2].VertexIndex)).ToArray());
+    }
+
+    private (LoadResult, (int, int)[]) WireFrame3D()
     {
         var objLoaderFactory = new ObjLoaderFactory();
         var objLoader = objLoaderFactory.Create();
         var fileStream = AssetLoader.Open(new Uri("avares://AvaloniaRendering/Assets/cube.txt"));
         var result = objLoader.Load(fileStream);
 
-        for (int i = result.Groups[0].Faces.Count - 1; i >= 0; i--)
-        {
-            var vertex0 = result.Vertices[result.Groups[0].Faces[i][0].VertexIndex - 1];
-            var vertex1 = result.Vertices[result.Groups[0].Faces[i][1].VertexIndex - 1];
-            var vertex2 = result.Vertices[result.Groups[0].Faces[i][2].VertexIndex - 1];
-
-            Vector3 vec0 = new Vector3(vertex0.X, vertex0.Y, vertex0.Z);
-            Vector3 vec1 = new Vector3(vertex1.X, vertex1.Y, vertex1.Z);
-            Vector3 vec2 = new Vector3(vertex2.X, vertex2.Y, vertex2.Z);
-
-            //Matrix4x4 matrix = Matrix4x4.CreateFromYawPitchRoll(0, -MathF.PI / 4, 0);
-            //vec0 = Vector3.Transform(vec0, matrix);
-            //vec1 = Vector3.Transform(vec1, matrix);
-            //vec2 = Vector3.Transform(vec2, matrix);
-
-            //matrix = Matrix4x4.CreateTranslation(new Vector3(0, 0, 2));
-            //vec0 = Vector3.Transform(vec0, matrix);
-            //vec1 = Vector3.Transform(vec1, matrix);
-            //vec2 = Vector3.Transform(vec2, matrix);
-
-        }
         (int, int)[] lineList = 
             [(0, 1), (1,2), (2,3), (3,0), // front
             (4,5), (5,6), (6,7), (7,4), // back
