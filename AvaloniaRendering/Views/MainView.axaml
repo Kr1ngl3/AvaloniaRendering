@@ -19,6 +19,6 @@
     </Design.DataContext>
 
     <Grid Background="White">
-        <c:Rendere />
+        <c:RenderingView />
     </Grid>
 </UserControl>

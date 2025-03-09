@@ -12,10 +12,10 @@ class Graphics
     private readonly int _width;
     private readonly int _height;
 
-    private readonly Rendere _rendere;
+    private readonly RenderingView _rendere;
     private readonly SKBitmap _bitmap;
 
-    public Graphics(Rendere rendere)
+    public Graphics(RenderingView rendere)
     {
         _width = (int)rendere.Width;
         _height = (int)rendere.Height;

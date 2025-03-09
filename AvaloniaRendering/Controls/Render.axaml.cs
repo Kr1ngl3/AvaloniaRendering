@@ -23,17 +23,17 @@ using AvaloniaRendering.Engine;
 
 namespace AvaloniaRendering.Controls;
 
-public partial class Rendere : UserControl
+public partial class RenderingView : UserControl
 {
-    private static readonly Key[] UsedKeys = { Key.W, Key.S, Key.Q, Key.E, Key.A, Key.D };
+    private static readonly Key[] UsedKeys = { Key.W, Key.S, Key.Q, Key.E, Key.A, Key.D, Key.Escape};
 
     private readonly Game _game;
 
     public Dictionary<Key, bool> KeyMap { get; } = new();
 
-    public SKBitmap Bitmap { get; }
+    public SKBitmap Bitmap { get; private set; }
 
-    public Rendere()
+    public RenderingView()
     {
         InitializeComponent();
 
@@ -48,6 +48,20 @@ public partial class Rendere : UserControl
 
         _game = new Game(this);
         _game.Start();
+    }
+
+    public void End()
+    {
+        Bitmap.Dispose();
+
+        Bitmap = null!;
+
+        Dispatcher.UIThread.Post(() => Content = new TextBlock
+        {
+            Foreground = Brushes.Black,
+            Text = "Games done"
+        });
+        
     }
 
     public override void Render(DrawingContext context)
@@ -67,7 +81,6 @@ public partial class Rendere : UserControl
     {
         KeyMap[e.Key] = false;
     }
-
 
     private class ImageDrawOperation : ICustomDrawOperation
     {

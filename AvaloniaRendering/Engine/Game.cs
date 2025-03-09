@@ -18,7 +18,7 @@ class Game
     const int FPS = 60;
     const float RotateSpeed = MathF.PI / FPS;
 
-    private readonly Rendere _rendere;
+    private readonly RenderingView _rendere;
     private readonly Graphics _graphics;
     private readonly Timer _timer;
 
@@ -29,9 +29,11 @@ class Game
     private readonly int _width;
     private readonly int _height;
 
+    private bool _isKill = false;
+
     (Vector3[] Vertices, (int, int, int)[] Faces) _model;
 
-    public Game(Rendere rendere)
+    public Game(RenderingView rendere)
     {
         _width = (int)rendere.Width;
         _height = (int)rendere.Height;
@@ -54,6 +56,10 @@ class Game
     {
         _graphics.BeginFrame();
         UpdateModel();
+
+        if (_isKill)
+            return;
+
         ComposeFrame();
         _graphics.EndFrame();
 
@@ -69,6 +75,9 @@ class Game
 
         _roll += _rendere.KeyMap[Key.Q] ? RotateSpeed : 0;
         _roll -= _rendere.KeyMap[Key.E] ? RotateSpeed : 0;
+
+        if (_rendere.KeyMap[Key.Escape])
+            Kill();
     }
 
     private void ComposeFrame()
@@ -109,6 +118,8 @@ class Game
     {
         _timer.Stop();
         _timer.Elapsed -= Go;
+        _rendere.End();
+        _isKill = true;
     }
 
     private Vector2 Transform(Vector3 vertex)
