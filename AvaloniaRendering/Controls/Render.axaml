@@ -6,8 +6,4 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     Width="500"
     Height="500"
-    mc:Ignorable="d">
-    <Border BorderBrush="Blue" BorderThickness="5">
-        <Image Name="image" />
-    </Border>
-</UserControl>
+    mc:Ignorable="d" />
