@@ -10,18 +10,16 @@ namespace AvaloniaRendering.Engine;
 class Graphics
 {
     private readonly int _width;
-    private readonly int _height;
 
-    private readonly RenderingView _rendere;
+    private readonly RenderingView _renderingView;
     private readonly SKBitmap _bitmap;
 
-    public Graphics(RenderingView rendere)
+    public Graphics(RenderingView renderingView)
     {
-        _width = (int)rendere.Width;
-        _height = (int)rendere.Height;
+        _width = (int)renderingView.Width;
 
-        _rendere = rendere;
-        _bitmap = rendere.Bitmap;
+        _renderingView = renderingView;
+        _bitmap = renderingView.Bitmap;
     }
 
     /// <summary>
@@ -37,54 +35,34 @@ class Graphics
     /// </summary>
     public void EndFrame()
     {
-        Dispatcher.UIThread.InvokeAsync(_rendere.InvalidateVisual);
+        Dispatcher.UIThread.InvokeAsync(_renderingView.InvalidateVisual);
     }
 
     /// <summary>
-    /// Source: https://github.com/SebLague/Gamedev-Maths/blob/master/PointInTriangle.cs
+    /// Set pixel at point to given color
+    /// Build in SetPixel looks slow
     /// </summary>
-    /// <param name="v0">First vertex of triangle</param>
-    /// <param name="v1">Second vertex of triangle</param>
-    /// <param name="v2">Third vertex of triangle</param>
-    /// <param name="point">Point to look at</param>
-    /// <returns>Whether the point is inside the triangle</returns>
-    private bool IsInsideTriangle(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 point)
+    /// <param name="point">Coordinates of pixel</param>
+    /// <param name="color">Color to be set to</param>
+    public void PutPixel(Vector2 point, SKColor color)
     {
-        double s1 = v2.Y - v0.Y;
-        double s2 = v2.X - v0.X;
-        double s3 = v1.Y - v0.Y;
-        double s4 = point.Y - v0.Y;
-
-        // fix bug from deriviation of equation
-        s1 = s1 == 0 ? 1 : s1;
-
-        double w1 = (v0.X * s1 + s4 * s2 - point.X * s1) / (s3 * s2 - (v1.X - v0.X) * s1);
-        double w2 = (s4 - w1 * s3) / s1;
-        return w1 >= 0 && w2 >= 0 && (w1 + w2) <= 1;
+        PutPixel((int)MathF.Round(point.X), (int)MathF.Round(point.Y), color);
     }
 
-    public void DrawTriangle(SKColor color, Vector2 v0, Vector2 v1, Vector2 v2)
+    /// <summary>
+    /// Set pixel at point to given color
+    /// Build in SetPixel looks slow
+    /// </summary>
+    /// <param name="x">X coordinate of pixel</param>
+    /// <param name="y">Y coordinate of pixel</param>
+    /// <param name="color">Color to be set to</param>
+    public void PutPixel(int x, int y, SKColor color)
     {
-        // Find the bounding box of the triangle
-        int minX = (int)MathF.Round(MathF.Min(MathF.Min(v0.X, v1.X), v2.X));
-        int maxX = (int)MathF.Round(MathF.Max(MathF.Max(v0.X, v1.X), v2.X));
-        int minY = (int)MathF.Round(MathF.Min(MathF.Min(v0.Y, v1.Y), v2.Y));
-        int maxY = (int)MathF.Round(MathF.Max(MathF.Max(v0.Y, v1.Y), v2.Y));
-
-        Vector2 point;
-
-        // Iterate over each pixel in the bounding box
-        for (point.Y = minY; point.Y <= maxY; point.Y++)
-        {
-            for (point.X = minX; point.X <= maxX; point.X++)
-            {
-                // If the point is inside the triangle, plot it
-                if (IsInsideTriangle(v0, v1, v2, point))
-                {
-                    PutPixel(point, color);
-                }
-            }
-        }
+        Span<byte> data = _bitmap.GetPixelSpan();
+        data[y * _width * 4 + x * 4] = color.Blue;
+        data[y * _width * 4 + x * 4 + 1] = color.Green;
+        data[y * _width * 4 + x * 4 + 2] = color.Red;
+        data[y * _width * 4 + x * 4 + 3] = color.Alpha;
     }
 
     /// <summary>
@@ -110,30 +88,4 @@ class Graphics
             PutPixel(point, color);
     }
 
-    /// <summary>
-    /// Set pixel at point to given color
-    /// Build in SetPixel looks slow
-    /// </summary>
-    /// <param name="point">Coordinates of pixel</param>
-    /// <param name="color">Color to be set to</param>
-    private void PutPixel(Vector2 point, SKColor color)
-    {
-        PutPixel((int)MathF.Round(point.X), (int)MathF.Round(point.Y), color);
-    }
-
-    /// <summary>
-    /// Set pixel at point to given color
-    /// Build in SetPixel looks slow
-    /// </summary>
-    /// <param name="x">X coordinate of pixel</param>
-    /// <param name="y">Y coordinate of pixel</param>
-    /// <param name="color">Color to be set to</param>
-    private void PutPixel(int x, int y, SKColor color)
-    {
-        Span<byte> data = _bitmap.GetPixelSpan();
-        data[y * _width * 4 + x * 4] = color.Blue;
-        data[y * _width * 4 + x * 4 + 1] = color.Green;
-        data[y * _width * 4 + x * 4 + 2] = color.Red;
-        data[y * _width * 4 + x * 4 + 3] = color.Alpha;
-    }
 }
