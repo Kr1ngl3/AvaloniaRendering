@@ -6,6 +6,7 @@ using ObjLoader.Loader.Data.VertexData;
 using ObjLoader.Loader.Loaders;
 using SkiaSharp;
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -16,7 +17,7 @@ namespace AvaloniaRendering.Engine;
 
 class Game
 {
-    const int FPS = 60;
+    const int FPS = 20;
     const float DeltaTime = 1f / FPS; 
 
     private readonly RenderingView _renderingView;

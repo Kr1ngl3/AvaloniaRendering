@@ -1,4 +1,8 @@
 ﻿using Avalonia;
+using Avalonia.Controls.Platform;
+using Avalonia.Controls.Templates;
+using Avalonia.Media;
+using Avalonia.Platform;
 using ObjLoader.Loader.Data.VertexData;
 using SkiaSharp;
 using Splat.ModeDetection;
@@ -15,19 +19,32 @@ class Pipeline
 {
     private readonly Graphics _graphics;
     private readonly Transformer _transformer;
+    private readonly SKBitmap _texture;
 
     public Pipeline(Graphics graphics, Transformer transformer)
     {
+        _texture = new SKBitmap(10, 10);
+        for (int i = 0; i < 10; i++)
+        {
+            for (int j = 0; j < 10; j++)
+            {
+                _texture.SetPixel(i, j, SKColor.FromHsv(10 * i * j % 360, 100, 100));
+            }
+        }
+        using var fileStream = AssetLoader.Open(new Uri("avares://AvaloniaRendering/Assets/obama.png"));
+
+        _texture = SKBitmap.Decode(fileStream);
+
         _graphics = graphics;
         _transformer = transformer;
     }
 
-    public void Draw((Vector3[] Vertices, (int, int, int)[] Faces) model, Matrix4x4 transformMatrix)
+    public void Draw((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
     {
         ProcessVertices(model, transformMatrix);
     }
 
-    private void ProcessVertices((Vector3[] Vertices, (int, int, int)[] Faces) model, Matrix4x4 transformMatrix)
+    private void ProcessVertices((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
     {
         Span<Vector3> vertices = stackalloc Vector3[model.Vertices.Length];
         model.Vertices.CopyTo(vertices);
@@ -42,95 +59,167 @@ class Pipeline
         AssembleTriangles(vertices, model.Faces);
     }
 
-    private void AssembleTriangles(Span<Vector3> vertices, (int, int, int)[] faces)
+    private void AssembleTriangles(Span<Vector3> vertices, Face[] faces)
     {
         for (int i = 0; i < faces.Length; i++)
         {
-            Vector3 v0 = vertices[faces[i].Item1 - 1];
-            Vector3 v1 = vertices[faces[i].Item2 - 1];
-            Vector3 v2 = vertices[faces[i].Item3 - 1];
+            Vertex v0 = new Vertex(vertices[faces[i].Vertex0 - 1], faces[i].TextureCoord0);
+            Vertex v1 = new Vertex(vertices[faces[i].Vertex1 - 1], faces[i].TextureCoord1);
+            Vertex v2 = new Vertex(vertices[faces[i].Vertex2 - 1], faces[i].TextureCoord2);
 
 
             // bigger than .5 for orto?
-            if (Dot(Cross(v1 - v0, v2 - v0), v0) > 0)
+            if (Dot(Cross(v1.Position - v0.Position, v2.Position - v0.Position), v0.Position) > 0)
                 continue;
 
-            ProcessTriangle(v0, v1, v2, i);
+            ProcessTriangle(v0, v1, v2);
         }
     }
 
     // triangle processing function
     // takes 3 vertices to generate triangle
     // sends generated triangle to post-processing
-    private void ProcessTriangle(Vector3 v0, Vector3 v1, Vector3 v2, int i)
+    private void ProcessTriangle(Vertex v0, Vertex v1, Vertex v2)
     {
         // generate triangle from 3 vertices using gs
         // and send to post-processing
-        PostProcessTriangleVertices(v0, v1, v2, i);
+        PostProcessTriangleVertices(v0, v1, v2);
     }
 
-    void PostProcessTriangleVertices(Vector3 v0, Vector3 v1, Vector3 v2, int i)
+    private void PostProcessTriangleVertices(Vertex v0, Vertex v1, Vertex v2)
     {
-        DrawTriangle(
-            SKColor.FromHsv(i * 30 % 360, 100, 100),
-            _transformer.Transform(v0),
-            _transformer.Transform(v1),
-            _transformer.Transform(v2));
+
+        v0.Position = _transformer.Transform(v0.Position);
+        v1.Position = _transformer.Transform(v1.Position);
+        v2.Position = _transformer.Transform(v2.Position);
+
+        DrawTriangle(v0, v1, v2);
     }
 
-    //private Vector2 OrtoTransform(Vector3 vertex)
-    //{
-    //    Vector2 factor = new Vector2(_width / 2f, _height / 2f);
+    private void DrawTriangle(Vertex v0, Vertex v1, Vertex v2)
+	{
+		// sorting vertices by y
+		if (v1.Position.Y < v0.Position.Y) (v0, v1) = (v1, v0);
+		if (v2.Position.Y < v1.Position.Y) (v1, v2) = (v2, v1);
+		if (v1.Position.Y < v0.Position.Y) (v0, v1) = (v1, v0);
 
-    //    return new Vector2((vertex.X + 1) * factor.X, (-vertex.Y + 1) * factor.Y);
-    //}
+		if (v0.Position.Y == v1.Position.Y) // natural flat top
+		{
+			// sorting top vertices by x
+			if (v1.Position.X < v0.Position.X) (v0, v1) = (v1, v0);
 
-    private void DrawTriangle(SKColor color, Vector2 v0, Vector2 v1, Vector2 v2)
-    {
-        // Find the bounding box of the triangle
-        int minX = (int)MathF.Round(MathF.Min(MathF.Min(v0.X, v1.X), v2.X));
-        int maxX = (int)MathF.Round(MathF.Max(MathF.Max(v0.X, v1.X), v2.X));
-        int minY = (int)MathF.Round(MathF.Min(MathF.Min(v0.Y, v1.Y), v2.Y));
-        int maxY = (int)MathF.Round(MathF.Max(MathF.Max(v0.Y, v1.Y), v2.Y));
+			DrawFlatTopTriangle(v0, v1, v2);
+}
+		else if(v1.Position.Y == v2.Position.Y) // natural flat bottom
+		{
+			// sorting bottom vertices by x
+			if(v2.Position.X < v1.Position.X) (v1, v2) = (v2, v1);
 
-        Vector2 point;
+			DrawFlatBottomTriangle(v0, v1, v2);
+		}
 
-        // Iterate over each pixel in the bounding box
-        for (point.Y = minY; point.Y <= maxY; point.Y++)
+        else // general triangle
         {
-            for (point.X = minX; point.X <= maxX; point.X++)
+            // find splitting vertex interpolant
+            float alphaSplit =
+                (v1.Position.Y - v0.Position.Y) /
+                (v2.Position.Y - v0.Position.Y);
+
+            Vertex vi = Interpolate(v0, v2, alphaSplit);
+
+            if (v1.Position.X < vi.Position.X) // major right
             {
-                // If the point is inside the triangle, plot it
-                if (IsInsideTriangle(v0, v1, v2, point))
-                {
-                    _graphics.PutPixel(point, color);
-                }
+                DrawFlatBottomTriangle(v0, v1, vi);
+                DrawFlatTopTriangle(v1, vi, v2);
+            }
+            else // major left
+            {
+                DrawFlatBottomTriangle(v0, vi, v1);
+                DrawFlatTopTriangle(vi, v1, v2);
             }
         }
     }
-    
-    /// <summary>
-    /// Source: https://github.com/SebLague/Gamedev-Maths/blob/master/PointInTriangle.cs
-    /// </summary>
-    /// <param name="v0">First vertex of triangle</param>
-    /// <param name="v1">Second vertex of triangle</param>
-    /// <param name="v2">Third vertex of triangle</param>
-    /// <param name="point">Point to look at</param>
-    /// <returns>Whether the point is inside the triangle</returns>
-    private bool IsInsideTriangle(Vector2 v0, Vector2 v1, Vector2 v2, Vector2 point)
+
+    // does flat *TOP* tri-specific calculations and calls DrawFlatTriangle
+    private void DrawFlatTopTriangle(Vertex v0, Vertex v1, Vertex v2)
     {
-        double s1 = v2.Y - v0.Y;
-        double s2 = v2.X - v0.X;
-        double s3 = v1.Y - v0.Y;
-        double s4 = point.Y - v0.Y;
+        // calulcate dVertex / dy
+        // change in interpolant for every 1 change in y
+        float delta_y = v2.Position.Y - v0.Position.Y;
+        Vertex dit0 = (v2 - v0) / delta_y;
+        Vertex dit1 = (v2 - v1) / delta_y;
 
-        // fix bug from deriviation of equation
-        s1 = s1 == 0 ? 1 : s1;
-
-        double w1 = (v0.X * s1 + s4 * s2 - point.X * s1) / (s3 * s2 - (v1.X - v0.X) * s1);
-        double w2 = (s4 - w1 * s3) / s1;
-        return w1 >= 0 && w2 >= 0 && (w1 + w2) <= 1;
+        // call the flat triangle render routine
+        DrawFlatTriangle(v0, v1, v2, dit0, dit1, v1);
     }
+
+    // does flat *BOTTOM* tri-specific calculations and calls DrawFlatTriangle
+    private void DrawFlatBottomTriangle(Vertex v0, Vertex v1, Vertex v2)
+    {
+        // calulcate dVertex / dy
+        // change in interpolant for every 1 change in y
+        float delta_y = v2.Position.Y - v0.Position.Y;
+        Vertex dit0 = (v1 - v0) / delta_y;
+        Vertex dit1 = (v2 - v0) / delta_y;
+
+
+        // call the flat triangle render routine
+        DrawFlatTriangle(v0, v1, v2, dit0, dit1, v0 );
+	}
+
+    // does processing common to both flat top and flat bottom tris
+    // texture lookup and pixel written here
+    void DrawFlatTriangle(
+        Vertex v0,
+	    Vertex v1,
+	    Vertex v2,
+	    Vertex dv0,
+	    Vertex dv1,
+	    Vertex edge1)
+	{
+        // create edge interpolant for left edge (always v0)
+        Vertex edge0 = v0;
+
+        // calculate start and end scanlines
+        int yStart = (int)MathF.Ceiling(v0.Position.Y - 0.5f);
+        int yEnd = (int)MathF.Ceiling(v2.Position.Y - 0.5f); // the scanline AFTER the last line drawn
+
+        // do interpolant prestep
+        edge0 += dv0 * ((float)yStart + 0.5f - v0.Position.Y);
+		edge1 += dv1 * ((float)yStart + 0.5f - v0.Position.Y);
+
+		// prepare clamping constants
+        float tex_xclamp = _texture.Width - 1.0f;
+        float tex_yclamp = _texture.Height - 1.0f;
+
+		for(int y = yStart; y < yEnd; y++, edge0 += dv0, edge1 += dv1)
+		{
+			// calculate start and end pixels
+			int xStart = (int)MathF.Ceiling(edge0.Position.X - 0.5f);
+            int xEnd = (int)MathF.Ceiling(edge1.Position.X - 0.5f); // the pixel AFTER the last pixel drawn
+
+            // create scanline interpolant startpoint
+            // (some waste for interpolating x,y,z, but makes life easier not having
+            //  to split them off, and z will be needed in the future anyways...)
+            Vertex iLine = edge0;
+
+            // calculate delta scanline interpolant / dx
+            float dx = edge1.Position.X - edge0.Position.X;
+            Vertex diLine = (edge1 - iLine) / dx;
+
+            // prestep scanline interpolant
+            iLine += diLine * ((float)xStart + 0.5f - edge0.Position.X);
+
+			for(int x = xStart; x < xEnd; x++, iLine += diLine )
+			{
+				// perform texture lookup, clamp, and write pixel
+				_graphics.PutPixel(x, y, _texture.GetPixel(
+                    (int)MathF.Min(iLine.TextureCoord.X * _texture.Width + 0.5f, tex_xclamp ),
+					(int)MathF.Min(iLine.TextureCoord.Y * _texture.Height + 0.5f, tex_yclamp )
+				));
+			}
+		}
+	}
 
     private Vector3 Cross(Vector3 lhs, Vector3 rhs)
     {
@@ -143,5 +232,10 @@ class Pipeline
     private float Dot(Vector3 lhs, Vector3 rhs)
     {
         return lhs.X * rhs.X + lhs.Y * rhs.Y + lhs.Z * rhs.Z;
+    }
+
+    Vertex Interpolate(Vertex source, Vertex destination, float alpha )
+    {
+	    return source + (destination - source) * alpha;
     }
 }

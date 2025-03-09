@@ -19,12 +19,15 @@ class Transformer
         _height = height;
     }
 
-    public Vector2 Transform(Vector3 vertex)
+    public Vector3 Transform(Vector3 vertex)
     {
         float distToScreen = 1;
         float inverse = distToScreen / vertex.Z;
         Vector2 factor = new Vector2(_width / 2f, _height / 2f);
 
-        return new((vertex.X * inverse + 1) * factor.X, (-vertex.Y * inverse + 1) * factor.Y);
+        vertex.X = (vertex.X * inverse + 1) * factor.X;
+        vertex.Y = (-vertex.Y * inverse + 1) * factor.Y;
+
+        return vertex;
     }
 }

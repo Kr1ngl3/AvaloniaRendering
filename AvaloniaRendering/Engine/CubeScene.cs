@@ -21,7 +21,7 @@ class CubeScene : Scene
     private float _pitch;
     private float _roll;
 
-    (Vector3[] Vertices, (int, int, int)[] Faces) _model;
+    (Vector3[] Vertices, Face[] Faces) _model;
 
     public CubeScene(Graphics graphics, Transformer transformer) : base(graphics, transformer)
     {
@@ -49,16 +49,29 @@ class CubeScene : Scene
         _pipeline.Draw(_model, matrix);
     }
 
-    private (Vector3[] Vertices, (int, int, int)[] Faces) Model3D()
+    private (Vector3[] Vertices, Face[] Faces) Model3D()
     {
         var objLoaderFactory = new ObjLoaderFactory();
         var objLoader = objLoaderFactory.Create();
         using var fileStream = AssetLoader.Open(new Uri("avares://AvaloniaRendering/Assets/cube.txt"));
         var result = objLoader.Load(fileStream);
 
-        return (result.Vertices.Select(VertexToVector).ToArray(),
-            result.Groups[0].Faces.Select(face => (face[0].VertexIndex, face[1].VertexIndex, face[2].VertexIndex)).ToArray());
+        return (
+            result.Vertices
+                .Select(VertexToVector)
+                .ToArray(),
+            result.Groups[0].Faces
+                .Select(face => new Face(
+                    face[0].VertexIndex,
+                    face[1].VertexIndex,
+                    face[2].VertexIndex,
+                    TextureToVector(result.Textures[face[0].TextureIndex - 1]),
+                    TextureToVector(result.Textures[face[1].TextureIndex - 1]),
+                    TextureToVector(result.Textures[face[2].TextureIndex - 1])
+                ))
+                .ToArray());
     }
 
-    private Vector3 VertexToVector(Vertex vertex) => new Vector3(vertex.X, vertex.Y, vertex.Z);
+    private Vector3 VertexToVector(ObjLoader.Loader.Data.VertexData.Vertex vertex) => new Vector3(vertex.X, vertex.Y, vertex.Z);
+    private Vector2 TextureToVector(Texture texture) => new Vector2(texture.X, texture.Y);
 }
