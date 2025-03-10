@@ -22,7 +22,7 @@ class Pipeline
     private readonly Graphics _graphics;
     private readonly Transformer _transformer;
     private readonly PixelShader _pixelShader;
-
+    private readonly ZBuffer _zBuffer;
 
     public Pipeline(Graphics graphics, Transformer transformer)
     {
@@ -34,11 +34,19 @@ class Pipeline
 
         _graphics = graphics;
         _transformer = transformer;
+        _zBuffer = new ZBuffer(_graphics.Width, _graphics.Height);
     }
 
     public void Draw((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
     {
+        BeginFrame();
+
         ProcessVertices(model, transformMatrix);
+    }
+
+    private void BeginFrame()
+    {
+        _zBuffer.Clear();
     }
 
     private void ProcessVertices((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
@@ -162,7 +170,6 @@ class Pipeline
 	}
 
     // does processing common to both flat top and flat bottom tris
-    // texture lookup and pixel written here
     void DrawFlatTriangle(
         Vertex v0,
 	    Vertex v1,
@@ -204,9 +211,14 @@ class Pipeline
             {
                 float z = 1f / iLine.Position.Z;
 
-                Vertex correctedVertex = iLine * z;
+                // Update z buffer if value is smaller
+                // Skip putpixel if not
+                if (_zBuffer.TestAndSet(x, y, z))
+                {
+                    Vertex correctedVertex = iLine * z;
 
-                _graphics.PutPixel(x, y, _pixelShader.Shade(correctedVertex));
+                    _graphics.PutPixel(x, y, _pixelShader.Shade(correctedVertex));
+                }
             }
         }
     }

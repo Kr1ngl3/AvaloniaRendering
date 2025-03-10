@@ -11,14 +11,16 @@ class Graphics
 {
     const int BytesPerPixel = 4;
 
-    private readonly int _width;
-
     private readonly RenderingView _renderingView;
     private readonly SKBitmap _bitmap;
 
+    public int Width { get; }
+    public int Height { get; }
+
     public Graphics(RenderingView renderingView)
     {
-        _width = (int)renderingView.Width;
+        Width = (int)renderingView.Width;
+        Height = (int)renderingView.Height;
 
         _renderingView = renderingView;
         _bitmap = renderingView.Bitmap;
@@ -61,10 +63,10 @@ class Graphics
     public void PutPixel(int x, int y, SKColor color)
     {
         Span<byte> data = _bitmap.GetPixelSpan();
-        data[y * _width * BytesPerPixel + x * BytesPerPixel] = color.Blue;
-        data[y * _width * BytesPerPixel + x * BytesPerPixel + 1] = color.Green;
-        data[y * _width * BytesPerPixel + x * BytesPerPixel + 2] = color.Red;
-        data[y * _width * BytesPerPixel + x * BytesPerPixel + 3] = color.Alpha;
+        data[y * Width * BytesPerPixel + x * BytesPerPixel] = color.Blue;
+        data[y * Width * BytesPerPixel + x * BytesPerPixel + 1] = color.Green;
+        data[y * Width * BytesPerPixel + x * BytesPerPixel + 2] = color.Red;
+        data[y * Width * BytesPerPixel + x * BytesPerPixel + 3] = color.Alpha;
     }
 
     /// <summary>

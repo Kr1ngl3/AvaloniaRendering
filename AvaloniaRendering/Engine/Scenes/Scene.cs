@@ -6,7 +6,7 @@ using System.Numerics;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AvaloniaRendering.Engine;
+namespace AvaloniaRendering.Engine.Scenes;
 
 abstract class Scene
 {

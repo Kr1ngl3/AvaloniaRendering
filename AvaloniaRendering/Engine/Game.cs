@@ -2,6 +2,7 @@
 using Avalonia.Media;
 using Avalonia.Platform;
 using AvaloniaRendering.Controls;
+using AvaloniaRendering.Engine.Scenes;
 using ObjLoader.Loader.Data.VertexData;
 using ObjLoader.Loader.Loaders;
 using SkiaSharp;
