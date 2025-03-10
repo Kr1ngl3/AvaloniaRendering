@@ -20,28 +20,16 @@ class Pipeline
 {
     private readonly Graphics _graphics;
     private readonly Transformer _transformer;
-    private readonly SKBitmap _texture;
-    private readonly PixelShader _pixelShader = new PixelShader();
+    private readonly PixelShader _pixelShader;
 
-    private readonly int _textureWidth;
-    private readonly int _textureHeight;
 
     public Pipeline(Graphics graphics, Transformer transformer)
     {
-        _texture = new SKBitmap(10, 10);
-        for (int i = 0; i < 10; i++)
-        {
-            for (int j = 0; j < 10; j++)
-            {
-                _texture.SetPixel(i, j, SKColor.FromHsv(10 * i * j % 360, 100, 100));
-            }
-        }
+
         using var fileStream = AssetLoader.Open(new Uri("avares://AvaloniaRendering/Assets/obama.png"));
 
-        _texture = SKBitmap.Decode(fileStream);
-
-        _textureWidth = _texture.Width;
-        _textureHeight = _texture.Height;
+        SKBitmap texture = SKBitmap.Decode(fileStream);
+        _pixelShader = new TexturePS(texture);
 
         _graphics = graphics;
         _transformer = transformer;
@@ -193,10 +181,6 @@ class Pipeline
         edge0 += dv0 * ((float)yStart + 0.5f - v0.Position.Y);
         edge1 += dv1 * ((float)yStart + 0.5f - v0.Position.Y);
 
-        // prepare clamping constants
-        float tex_xclamp = _textureWidth - 1.0f;
-        float tex_yclamp = _textureHeight - 1.0f;
-
         for (int y = yStart; y < yEnd; y++, edge0 += dv0, edge1 += dv1)
         {
             // calculate start and end pixels
@@ -217,11 +201,6 @@ class Pipeline
             
             for (int x = xStart; x < xEnd; x++, iLine += diLine)
             {
-                //perform texture lookup, clamp, and write pixel
-                //_graphics.PutPixel(x, y, _texture.GetPixel(
-                //    (int)MathF.Min(iLine.TextureCoord.X * _textureWidth + 0.5f, tex_xclamp),
-                //    (int)MathF.Min(iLine.TextureCoord.Y * _textureHeight + 0.5f, tex_yclamp)
-                //));
                 _graphics.PutPixel(x, y, _pixelShader.Shade(iLine.Position, iLine.TextureCoord));
             }
         }
