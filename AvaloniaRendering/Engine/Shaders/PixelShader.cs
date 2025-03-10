@@ -11,8 +11,8 @@ namespace AvaloniaRendering.Engine.Shaders;
 
 class PixelShader
 {
-    public virtual SKColor Shade(Vector3 fragCoord, Vector2 texCoord)
+    public virtual SKColor Shade(Vertex vertex)
     {
-        return new SKColor((byte)(texCoord.X * 255), (byte)(texCoord.Y * 255), 0, 255);
+        return new SKColor((byte)(vertex.TextureCoord.X * 255), (byte)(vertex.TextureCoord.Y * 255), 0, 255);
     }
 }

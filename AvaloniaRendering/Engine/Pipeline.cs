@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -201,7 +202,11 @@ class Pipeline
             
             for (int x = xStart; x < xEnd; x++, iLine += diLine)
             {
-                _graphics.PutPixel(x, y, _pixelShader.Shade(iLine.Position, iLine.TextureCoord));
+                float z = 1f / iLine.Position.Z;
+
+                Vertex correctedVertex = iLine * z;
+
+                _graphics.PutPixel(x, y, _pixelShader.Shade(correctedVertex));
             }
         }
     }

@@ -25,12 +25,12 @@ class TexturePS : PixelShader
         _textureHeight = _texture.Height;
     }
 
-    public override SKColor Shade(Vector3 fragCoord, Vector2 texCoord)
+    public override SKColor Shade(Vertex vertex)
     {
         //perform texture lookup, clamp, and write pixel
         return _texture.GetPixel(
-            (int)MathF.Min(texCoord.X * _textureWidth + 0.5f, _textureWidth - 1),
-            (int)MathF.Min(texCoord.Y * _textureHeight + 0.5f, _textureHeight - 1)
+            (int)MathF.Min(vertex.TextureCoord.X * _textureWidth + 0.5f, _textureWidth - 1),
+            (int)MathF.Min(vertex.TextureCoord.Y * _textureHeight + 0.5f, _textureHeight - 1)
         );
     }
 }

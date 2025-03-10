@@ -22,9 +22,12 @@ class Transformer
     public void Transform(ref Vertex vertex)
     {
         float distToScreen = 1;
-        float inverse = distToScreen / vertex.Position.Z;
+        float inverseZ = distToScreen / vertex.Position.Z;
+
+        vertex *= inverseZ;
+
         Vector2 factor = new Vector2(_width / 2f, _height / 2f);
 
-        vertex.Position = new Vector3((vertex.Position.X * inverse + 1) * factor.X, (-vertex.Position.Y * inverse + 1) * factor.Y, vertex.Position.Z);
+        vertex.Position = new Vector3((vertex.Position.X + 1) * factor.X, (-vertex.Position.Y + 1) * factor.Y, inverseZ);
     }
 }
