@@ -9,6 +9,8 @@ namespace AvaloniaRendering.Engine;
 
 class Graphics
 {
+    const int BytesPerPixel = 4;
+
     private readonly int _width;
 
     private readonly RenderingView _renderingView;
@@ -59,10 +61,10 @@ class Graphics
     public void PutPixel(int x, int y, SKColor color)
     {
         Span<byte> data = _bitmap.GetPixelSpan();
-        data[y * _width * 4 + x * 4] = color.Blue;
-        data[y * _width * 4 + x * 4 + 1] = color.Green;
-        data[y * _width * 4 + x * 4 + 2] = color.Red;
-        data[y * _width * 4 + x * 4 + 3] = color.Alpha;
+        data[y * _width * BytesPerPixel + x * BytesPerPixel] = color.Blue;
+        data[y * _width * BytesPerPixel + x * BytesPerPixel + 1] = color.Green;
+        data[y * _width * BytesPerPixel + x * BytesPerPixel + 2] = color.Red;
+        data[y * _width * BytesPerPixel + x * BytesPerPixel + 3] = color.Alpha;
     }
 
     /// <summary>

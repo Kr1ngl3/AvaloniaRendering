@@ -28,5 +28,4 @@ record struct Vertex(Vector3 Position, Vector2 TextureCoord)
     {
         return new Vertex(lhs.Position * rhs, lhs.TextureCoord * rhs);
     }
-
 }

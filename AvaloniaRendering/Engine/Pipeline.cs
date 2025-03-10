@@ -21,6 +21,9 @@ class Pipeline
     private readonly Transformer _transformer;
     private readonly SKBitmap _texture;
 
+    private readonly int _textureWidth;
+    private readonly int _textureHeight;
+
     public Pipeline(Graphics graphics, Transformer transformer)
     {
         _texture = new SKBitmap(10, 10);
@@ -34,6 +37,9 @@ class Pipeline
         using var fileStream = AssetLoader.Open(new Uri("avares://AvaloniaRendering/Assets/obama.png"));
 
         _texture = SKBitmap.Decode(fileStream);
+
+        _textureWidth = _texture.Width;
+        _textureHeight = _texture.Height;
 
         _graphics = graphics;
         _transformer = transformer;
@@ -52,7 +58,6 @@ class Pipeline
         // transform from model space to view/world space
         for (int i = 0; i < vertices.Length; i++)
         {
-            //vertices[i] = Vector3.Transform(vertices[i], Matrix4x4.CreateScale(new Vector3(1f/5)));
             vertices[i] = Vector3.Transform(vertices[i], transformMatrix);
         }
 
@@ -67,8 +72,6 @@ class Pipeline
             Vertex v1 = new Vertex(vertices[faces[i].Vertex1 - 1], faces[i].TextureCoord1);
             Vertex v2 = new Vertex(vertices[faces[i].Vertex2 - 1], faces[i].TextureCoord2);
 
-
-            // bigger than .5 for orto?
             if (Dot(Cross(v1.Position - v0.Position, v2.Position - v0.Position), v0.Position) > 0)
                 continue;
 
@@ -86,12 +89,12 @@ class Pipeline
         PostProcessTriangleVertices(v0, v1, v2);
     }
 
-    private void PostProcessTriangleVertices(Vertex v0, Vertex v1, Vertex v2)
+    private void PostProcessTriangleVertices(Vertex v0, Vertex v1,Vertex v2)
     {
 
-        v0.Position = _transformer.Transform(v0.Position);
-        v1.Position = _transformer.Transform(v1.Position);
-        v2.Position = _transformer.Transform(v2.Position);
+        _transformer.Transform(ref v0);
+        _transformer.Transform(ref v1);
+        _transformer.Transform(ref v2);
 
         DrawTriangle(v0, v1, v2);
     }
@@ -186,16 +189,16 @@ class Pipeline
 
         // do interpolant prestep
         edge0 += dv0 * ((float)yStart + 0.5f - v0.Position.Y);
-		edge1 += dv1 * ((float)yStart + 0.5f - v0.Position.Y);
+        edge1 += dv1 * ((float)yStart + 0.5f - v0.Position.Y);
 
-		// prepare clamping constants
-        float tex_xclamp = _texture.Width - 1.0f;
-        float tex_yclamp = _texture.Height - 1.0f;
+        // prepare clamping constants
+        float tex_xclamp = _textureWidth - 1.0f;
+        float tex_yclamp = _textureHeight - 1.0f;
 
-		for(int y = yStart; y < yEnd; y++, edge0 += dv0, edge1 += dv1)
-		{
-			// calculate start and end pixels
-			int xStart = (int)MathF.Ceiling(edge0.Position.X - 0.5f);
+        for (int y = yStart; y < yEnd; y++, edge0 += dv0, edge1 += dv1)
+        {
+            // calculate start and end pixels
+            int xStart = (int)MathF.Ceiling(edge0.Position.X - 0.5f);
             int xEnd = (int)MathF.Ceiling(edge1.Position.X - 0.5f); // the pixel AFTER the last pixel drawn
 
             // create scanline interpolant startpoint
@@ -209,17 +212,17 @@ class Pipeline
 
             // prestep scanline interpolant
             iLine += diLine * ((float)xStart + 0.5f - edge0.Position.X);
-
-			for(int x = xStart; x < xEnd; x++, iLine += diLine )
-			{
-				// perform texture lookup, clamp, and write pixel
-				_graphics.PutPixel(x, y, _texture.GetPixel(
-                    (int)MathF.Min(iLine.TextureCoord.X * _texture.Width + 0.5f, tex_xclamp ),
-					(int)MathF.Min(iLine.TextureCoord.Y * _texture.Height + 0.5f, tex_yclamp )
-				));
-			}
-		}
-	}
+            
+            for (int x = xStart; x < xEnd; x++, iLine += diLine)
+            {
+                //perform texture lookup, clamp, and write pixel
+                _graphics.PutPixel(x, y, _texture.GetPixel(
+                    (int)MathF.Min(iLine.TextureCoord.X * _textureWidth + 0.5f, tex_xclamp),
+                    (int)MathF.Min(iLine.TextureCoord.Y * _textureHeight + 0.5f, tex_yclamp)
+                ));
+            }
+        }
+    }
 
     private Vector3 Cross(Vector3 lhs, Vector3 rhs)
     {

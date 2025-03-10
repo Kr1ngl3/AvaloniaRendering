@@ -29,4 +29,10 @@
     <PackageReference Include="CjClutter.ObjLoader" Version="1.0.0" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Controls\RenderingView.axaml.cs">
+      <DependentUpon>RenderingView.axaml</DependentUpon>
+    </Compile>
+  </ItemGroup>
 </Project>

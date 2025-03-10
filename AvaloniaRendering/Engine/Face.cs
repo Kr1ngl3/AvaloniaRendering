@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace AvaloniaRendering.Engine;
 
-record struct Face(
+readonly record struct Face(
     int Vertex0,
     int Vertex1,
     int Vertex2,

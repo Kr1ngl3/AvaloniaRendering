@@ -10,6 +10,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Timers;
 
 
@@ -17,7 +18,7 @@ namespace AvaloniaRendering.Engine;
 
 class Game
 {
-    const int FPS = 20;
+    const int FPS = 60;
     const float DeltaTime = 1f / FPS; 
 
     private readonly RenderingView _renderingView;
