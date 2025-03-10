@@ -3,6 +3,7 @@ using Avalonia.Controls.Platform;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using Avalonia.Platform;
+using AvaloniaRendering.Engine.Shaders;
 using ObjLoader.Loader.Data.VertexData;
 using SkiaSharp;
 using Splat.ModeDetection;
@@ -20,6 +21,7 @@ class Pipeline
     private readonly Graphics _graphics;
     private readonly Transformer _transformer;
     private readonly SKBitmap _texture;
+    private readonly PixelShader _pixelShader = new PixelShader();
 
     private readonly int _textureWidth;
     private readonly int _textureHeight;
@@ -216,10 +218,11 @@ class Pipeline
             for (int x = xStart; x < xEnd; x++, iLine += diLine)
             {
                 //perform texture lookup, clamp, and write pixel
-                _graphics.PutPixel(x, y, _texture.GetPixel(
-                    (int)MathF.Min(iLine.TextureCoord.X * _textureWidth + 0.5f, tex_xclamp),
-                    (int)MathF.Min(iLine.TextureCoord.Y * _textureHeight + 0.5f, tex_yclamp)
-                ));
+                //_graphics.PutPixel(x, y, _texture.GetPixel(
+                //    (int)MathF.Min(iLine.TextureCoord.X * _textureWidth + 0.5f, tex_xclamp),
+                //    (int)MathF.Min(iLine.TextureCoord.Y * _textureHeight + 0.5f, tex_yclamp)
+                //));
+                _graphics.PutPixel(x, y, _pixelShader.Shade(iLine.Position, iLine.TextureCoord));
             }
         }
     }
