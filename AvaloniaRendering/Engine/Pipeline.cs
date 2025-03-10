@@ -37,17 +37,16 @@ class Pipeline
         _zBuffer = new ZBuffer(_graphics.Width, _graphics.Height);
     }
 
-    public void Draw((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
-    {
-        BeginFrame();
-
-        ProcessVertices(model, transformMatrix);
-    }
-
-    private void BeginFrame()
+    public void BeginFrame()
     {
         _zBuffer.Clear();
     }
+
+    public void Draw((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
+    {
+        ProcessVertices(model, transformMatrix);
+    }
+
 
     private void ProcessVertices((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
     {

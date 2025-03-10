@@ -37,7 +37,7 @@ class Game
 
         _timer = new Timer(1d / FPS * 1000);
         _timer.Elapsed += Go;
-        _currentScene = new CubeScene(_graphics, new Transformer((int)renderingView.Width, (int)renderingView.Height));
+        _currentScene = new DoubleCubeScene(_graphics, new Transformer((int)renderingView.Width, (int)renderingView.Height));
     }
 
     public void Start()
