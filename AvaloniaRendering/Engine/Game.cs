@@ -1,6 +1,7 @@
 ﻿using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using AvaloniaRendering.Controls;
 using AvaloniaRendering.Engine.Scenes;
 using ObjLoader.Loader.Data.VertexData;
@@ -8,10 +9,14 @@ using ObjLoader.Loader.Loaders;
 using SkiaSharp;
 using System;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Numerics;
+using System.Reactive.Concurrency;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Timers;
 
 
@@ -24,28 +29,59 @@ class Game
 
     private readonly RenderingView _renderingView;
     private readonly Graphics _graphics;
-    private readonly Timer _timer;
+    //private readonly Timer _timer;
 
     private Scene _currentScene;
 
     private bool _isKill = false;
+
+    public double Frames { get; private set; }
 
     public Game(RenderingView renderingView)
     {
         _renderingView = renderingView;
         _graphics = new Graphics(renderingView);
 
-        _timer = new Timer(1d / FPS * 1000);
-        _timer.Elapsed += Go;
+        //_timer = new Timer(1d / FPS * 1000);
+        //_timer.Elapsed += Go;
         _currentScene = new DoubleCubeScene(_graphics, new Transformer((int)renderingView.Width, (int)renderingView.Height));
     }
 
     public void Start()
     {
-        _timer.Start();
+        //_timer.Start();
+        Task.Run(() =>
+        {
+            int counter = 0;
+            // Create a new Stopwatch instance
+            Stopwatch stopwatch = new Stopwatch();
+
+            stopwatch.Start();
+            while (true)
+            {
+
+
+                Go();
+                // Stop the stopwatch after the iteration
+
+                if (counter == 100)
+                {
+
+                    stopwatch.Stop();
+                    counter = 0;
+                    Dispatcher.UIThread.Invoke(() => _renderingView.Text.Text = (100000 / stopwatch.Elapsed.TotalMilliseconds).ToString() + " fps");
+
+                    stopwatch.Reset();
+
+                    stopwatch.Start();
+                }
+
+                counter++;
+            }
+        });
     }
 
-    private void Go(object? sender, ElapsedEventArgs eventArgs)
+    private void Go(/*object? sender, ElapsedEventArgs eventArgs*/)
     {
         _graphics.BeginFrame();
         UpdateModel();
@@ -73,8 +109,8 @@ class Game
 
     private void Kill()
     {
-        _timer.Stop();
-        _timer.Elapsed -= Go;
+        //_timer.Stop();
+        //_timer.Elapsed -= Go;
         _renderingView.End();
         _isKill = true;
     }

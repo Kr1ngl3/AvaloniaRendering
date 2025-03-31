@@ -42,13 +42,13 @@ class Pipeline
         _zBuffer.Clear();
     }
 
-    public void Draw((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
+    public void Draw((Vector3[] Vertices, Face[] Faces) model, ref Matrix4x4 transformMatrix)
     {
-        ProcessVertices(model, transformMatrix);
+        ProcessVertices(model, ref transformMatrix);
     }
 
 
-    private void ProcessVertices((Vector3[] Vertices, Face[] Faces) model, Matrix4x4 transformMatrix)
+    private void ProcessVertices((Vector3[] Vertices, Face[] Faces) model, ref Matrix4x4 transformMatrix)
     {
         Span<Vector3> vertices = stackalloc Vector3[model.Vertices.Length];
         model.Vertices.CopyTo(vertices);
@@ -73,51 +73,52 @@ class Pipeline
             if (Dot(Cross(v1.Position - v0.Position, v2.Position - v0.Position), v0.Position) > 0)
                 continue;
 
-            ProcessTriangle(v0, v1, v2);
+            ProcessTriangle(ref v0, ref v1, ref v2);
+            
         }
     }
 
     // triangle processing function
     // takes 3 vertices to generate triangle
     // sends generated triangle to post-processing
-    private void ProcessTriangle(Vertex v0, Vertex v1, Vertex v2)
+    private void ProcessTriangle(ref Vertex v0, ref Vertex v1, ref Vertex v2)
     {
         // generate triangle from 3 vertices using gs
         // and send to post-processing
-        PostProcessTriangleVertices(v0, v1, v2);
+        PostProcessTriangleVertices(ref v0, ref v1, ref v2);
     }
 
-    private void PostProcessTriangleVertices(Vertex v0, Vertex v1,Vertex v2)
+    private void PostProcessTriangleVertices(ref Vertex v0, ref Vertex v1, ref Vertex v2)
     {
 
         _transformer.Transform(ref v0);
         _transformer.Transform(ref v1);
         _transformer.Transform(ref v2);
 
-        DrawTriangle(v0, v1, v2);
+        DrawTriangle(ref v0, ref v1, ref v2);
     }
 
-    private void DrawTriangle(Vertex v0, Vertex v1, Vertex v2)
-	{
-		// sorting vertices by y
-		if (v1.Position.Y < v0.Position.Y) (v0, v1) = (v1, v0);
-		if (v2.Position.Y < v1.Position.Y) (v1, v2) = (v2, v1);
-		if (v1.Position.Y < v0.Position.Y) (v0, v1) = (v1, v0);
+    private void DrawTriangle(ref Vertex v0, ref Vertex v1, ref Vertex v2)
+    {
+        // sorting vertices by y
+        if (v1.Position.Y < v0.Position.Y) (v0, v1) = (v1, v0);
+        if (v2.Position.Y < v1.Position.Y) (v1, v2) = (v2, v1);
+        if (v1.Position.Y < v0.Position.Y) (v0, v1) = (v1, v0);
 
-		if (v0.Position.Y == v1.Position.Y) // natural flat top
-		{
-			// sorting top vertices by x
-			if (v1.Position.X < v0.Position.X) (v0, v1) = (v1, v0);
+        if (v0.Position.Y == v1.Position.Y) // natural flat top
+        {
+            // sorting top vertices by x
+            if (v1.Position.X < v0.Position.X) (v0, v1) = (v1, v0);
 
-			DrawFlatTopTriangle(v0, v1, v2);
-}
-		else if(v1.Position.Y == v2.Position.Y) // natural flat bottom
-		{
-			// sorting bottom vertices by x
-			if(v2.Position.X < v1.Position.X) (v1, v2) = (v2, v1);
+            DrawFlatTopTriangle(v0, v1, v2);
+        }
+        else if (v1.Position.Y == v2.Position.Y) // natural flat bottom
+        {
+            // sorting bottom vertices by x
+            if (v2.Position.X < v1.Position.X) (v1, v2) = (v2, v1);
 
-			DrawFlatBottomTriangle(v0, v1, v2);
-		}
+            DrawFlatBottomTriangle(v0, v1, v2);
+        }
 
         else // general triangle
         {
@@ -165,18 +166,18 @@ class Pipeline
 
 
         // call the flat triangle render routine
-        DrawFlatTriangle(v0, v1, v2, dit0, dit1, v0 );
-	}
+        DrawFlatTriangle(v0, v1, v2, dit0, dit1, v0);
+    }
 
     // does processing common to both flat top and flat bottom tris
     void DrawFlatTriangle(
         Vertex v0,
-	    Vertex v1,
-	    Vertex v2,
-	    Vertex dv0,
-	    Vertex dv1,
-	    Vertex edge1)
-	{
+        Vertex v1,
+        Vertex v2,
+        Vertex dv0,
+        Vertex dv1,
+        Vertex edge1)
+    {
         // create edge interpolant for left edge (always v0)
         Vertex edge0 = v0;
 
@@ -205,7 +206,7 @@ class Pipeline
 
             // prestep scanline interpolant
             iLine += diLine * ((float)xStart + 0.5f - edge0.Position.X);
-            
+
             for (int x = xStart; x < xEnd; x++, iLine += diLine)
             {
                 float z = 1f / iLine.Position.Z;
@@ -235,8 +236,8 @@ class Pipeline
         return lhs.X * rhs.X + lhs.Y * rhs.Y + lhs.Z * rhs.Z;
     }
 
-    Vertex Interpolate(Vertex source, Vertex destination, float alpha )
+    Vertex Interpolate(Vertex source, Vertex destination, float alpha)
     {
-	    return source + (destination - source) * alpha;
+        return source + (destination - source) * alpha;
     }
 }

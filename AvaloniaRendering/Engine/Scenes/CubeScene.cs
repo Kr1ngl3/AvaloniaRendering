@@ -48,6 +48,6 @@ class CubeScene : Scene
         // move 2 back to move away from screen which is at z=1
         Matrix4x4 matrix = Matrix4x4.CreateFromYawPitchRoll(_yaw, _pitch, _roll) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 2));
 
-        _pipeline.Draw(_model, matrix);
+        _pipeline.Draw(_model, ref matrix);
     }
 }

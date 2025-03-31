@@ -3,7 +3,10 @@ using Avalonia.Threading;
 using AvaloniaRendering.Controls;
 using SkiaSharp;
 using System;
+using System.Diagnostics;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace AvaloniaRendering.Engine;
 
@@ -31,7 +34,20 @@ class Graphics
     /// </summary>
     public void BeginFrame()
     {
-        _bitmap.Erase(SKColors.Black);
+        //for (int y = 0; y < Height; y++)
+        //{
+        //    for (int x = 0; x < Width; x++)
+        //    {
+        //        PutPixel(x, y, SKColors.Black);
+        //    }
+        //}
+        Parallel.For(0, Width * Height, i =>
+        {
+            int y = i / Width;     // Integer division to get the row (y-coordinate)
+            int x = i % Width;     // Modulo to get the column (x-coordinate)
+
+            PutPixel(x, y, SKColors.Black);
+        });
     }
 
     /// <summary>
@@ -39,7 +55,18 @@ class Graphics
     /// </summary>
     public void EndFrame()
     {
-        Dispatcher.UIThread.InvokeAsync(_renderingView.InvalidateVisual);
+        Dispatcher.UIThread.Invoke(_renderingView.InvalidateVisual);
+        NOP(0.008);
+    }
+    private static void NOP(double durationSeconds)
+    {
+        var durationTicks = Math.Round(durationSeconds * Stopwatch.Frequency);
+        var sw = Stopwatch.StartNew();
+
+        while (sw.ElapsedTicks < durationTicks)
+        {
+
+        }
     }
 
     /// <summary>

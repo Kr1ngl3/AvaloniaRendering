@@ -28,6 +28,7 @@ public partial class RenderingView : UserControl
     private static readonly Key[] UsedKeys = { Key.W, Key.S, Key.Q, Key.E, Key.A, Key.D, Key.Escape};
 
     private readonly Game _game;
+    private readonly ImageDrawOperation _imageDrawOperation;
 
     public Dictionary<Key, bool> KeyMap { get; } = new();
 
@@ -38,7 +39,7 @@ public partial class RenderingView : UserControl
         InitializeComponent();
 
         Bitmap = new SKBitmap((int)Width, (int)Height);
-
+        _imageDrawOperation = new ImageDrawOperation(Bitmap, (int)Width, (int)Height);
 
         foreach (Key key in UsedKeys)
             KeyMap[key] = false;
@@ -63,13 +64,13 @@ public partial class RenderingView : UserControl
         });
         
     }
-
+    
     public override void Render(DrawingContext context)
     {
         if (Bitmap is null)
             return;
 
-        context.Custom(new ImageDrawOperation(Bitmap, (int)Width, (int)Height));
+        context.Custom(_imageDrawOperation);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

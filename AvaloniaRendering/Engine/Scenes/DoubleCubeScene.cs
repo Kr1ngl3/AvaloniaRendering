@@ -33,9 +33,12 @@ class DoubleCubeScene : Scene
     public override void Draw()
     {
         _pipeline.BeginFrame();
+        
+        Matrix4x4 matrix1 = Matrix4x4.CreateFromYawPitchRoll(MathF.PI / 4, MathF.PI / 4, 0) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 3));
+        Matrix4x4 matrix2 = Matrix4x4.CreateTranslation(new Vector3(0, 0, 3 + _z));
 
-        _pipeline.Draw(_model, Matrix4x4.CreateFromYawPitchRoll(MathF.PI / 4, MathF.PI / 4, 0) * Matrix4x4.CreateTranslation(new Vector3(0, 0, 3)));
+        _pipeline.Draw(_model, ref matrix1);
 
-        _pipeline.Draw(_model, Matrix4x4.CreateTranslation(new Vector3(0, 0, 3 + _z)));
+        _pipeline.Draw(_model, ref matrix2);
     }
 }
